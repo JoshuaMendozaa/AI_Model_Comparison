@@ -1,6 +1,5 @@
-version: '3.8'
-
 services:
+
   postgres:
     image: postgres:15-alpine
     environment:
@@ -41,7 +40,9 @@ services:
       - influxdb
       - redis
     environment:
-      DATABASE_URL: postgresql+asyncpg://battleuser:battlepass@postgres/ai_battle_db
+      DATABASE_URL: postgresql+psycopg2://battleuser:battlepass@postgres/ai_battle_db
+      SYNC_DATABASE_URL: postgresql+psycopg2://battleuser:battlepass@postgres/ai_battle_db
+      ASYNC_DATABASE_URL: postgresql+asyncpg://battleuser:battlepass@postgres/ai_battle_db
       REDIS_URL: redis://redis:6379
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_TOKEN: your-token-here

@@ -2,17 +2,22 @@
 #hold app settings like database URL, secret keys, etc.
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pydantic import Field, AliasChoices
 
 class Settings(BaseSettings):
     #Project info
     #metadata for the project like name, version, etc.
-    proj_name: str = "AI_Model_B"
-    api_v1_str: str = "/api/v1"
-    DEBUG: bool = False
+    APP_NAME: str = "AI Battle"
+    APP_VERSION: str = "0.1.0"
+    DEBUG: bool = True
+    API_V1_PREFIX: str = "/api/v1"
 
     # Database settings
     # url for connecting to the database
-    DATABASE_URL: Optional[str]
+    DATABASE_URL: str = Field(validation_alias=AliasChoices("DATABASE_URL", "SYNC_DATABASE_URL"))
+    ASYNC_DATABASE_URL: Optional[str] = None
+    # url for connecting to the synchronous database (for Alembic migrations)
+    # used by Alembic which does not support async DB connections
     SYNC_DATABASE_URL: Optional[str] = None
 
     #REDIS
@@ -34,6 +39,7 @@ class Settings(BaseSettings):
 
     class Config: #pydantic settings config class for loading env variables
         env_file = ".env"
+        "extra = 'ignore' #ignore extra env variables not defined in this class"
         env_file_encoding = "utf-8"
 
-settings = Settings() #instance of settings to be imported and used throughout the app
+settings = Settings() #instance of settings to be imported and used throughout the appA

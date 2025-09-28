@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Model Battle Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.8); }
+        }
+        .live-indicator { animation: pulse-glow 2s infinite; }
+        .battle-card { transition: all 0.3s ease; }
+        .battle-card:hover { transform: translateY(-4px); }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg border-b border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+                    ⚔️ AI Model Battle Arena
+                </h1>
+                <div class="flex items-center gap-4">
+                    <div id="connectionStatus" class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-red-500 rounded-full" id="statusDot"></div>
+                        <span id="statusText" class="text-sm">Disconnected</span>
+                    </div>
+                    <button onclick="showLoginModal()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">
+                        Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 class="text-gray-400 text-sm mb-2">Total Models</h3>
+                <p class="text-3xl font-bold" id="totalModels">0</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 class="text-gray-400 text-sm mb-2">Total Battles</h3>
+                <p class="text-3xl font-bold" id="totalBattles">0</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 class="text-gray-400 text-sm mb-2">Benchmarks Today</h3>
+                <p class="text-3xl font-bold" id="benchmarksToday">0</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 live-indicator">
+                <h3 class="text-gray-400 text-sm mb-2">Live Updates</h3>
+                <p class="text-3xl font-bold text-green-400" id="liveCount">0</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-4 mb-6 border-b border-gray-700">
+            <button onclick="switchTab('battles')" class="tab-btn px-4 py-2 border-b-2 border-blue-500 text-blue-400" data-tab="battles">
+                Recent Battles
+            </button>
+            <button onclick="switchTab('leaderboard')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-600" data-tab="leaderboard">
+                Leaderboard
+            </button>
+            <button onclick="switchTab('benchmarks')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-600" data-tab="benchmarks">
+                Submit Benchmark
+            </button>
+            <button onclick="switchTab('models')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-600" data-tab="models">
+                Models
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tabContent">
+            <!-- Recent Battles Tab -->
+            <div id="battles-tab" class="tab-content">
+                <div class="grid gap-4" id="battlesContainer">
+                    <!-- Battle cards will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Leaderboard Tab -->
+            <div id="leaderboard-tab" class="tab-content hidden">
+                <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left">Rank</th>
+                                <th class="px-6 py-3 text-left">Model</th>
+                                <th class="px-6 py-3 text-left">Win Rate</th>
+                                <th class="px-6 py-3 text-left">Battles</th>
+                                <th class="px-6 py-3 text-left">Wins</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardBody">
+                            <!-- Leaderboard rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Submit Benchmark Tab -->
+            <div id="benchmarks-tab" class="tab-content hidden">
+                <div class="max-w-2xl mx-auto bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4">Submit Benchmark Results</h2>
+                    <form id="benchmarkForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Model ID</label>
+                            <input type="number" name="model_id" required class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Test Name</label>
+                            <input type="text" name="test_name" required class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Accuracy (%)</label>
+                                <input type="number" name="accuracy" step="0.01" min="0" max="100" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Speed (ms)</label>
+                                <input type="number" name="speed_ms" step="0.01" min="0" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Memory (MB)</label>
+                                <input type="number" name="memory_mb" step="0.01" min="0" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Throughput (req/s)</label>
+                                <input type="number" name="throughput" step="0.01" min="0" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg transition">
+                            Submit Benchmark
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Models Tab -->
+            <div id="models-tab" class="tab-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="modelsContainer">
+                    <!-- Model cards will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
+            <h2 class="text-xl font-bold mb-4">Login</h2>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Username</label>
+                    <input type="text" name="username" required class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Password</label>
+                    <input type="password" name="password" required class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg transition">
+                    Login
+                </button>
+                <button type="button" onclick="hideLoginModal()" class="w-full bg-gray-600 hover:bg-gray-700 py-2 rounded-lg transition">
+                    Cancel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:8000/api/v1';
+        const WS_URL = 'ws://localhost:8000/ws';
+        let ws = null;
+        let authToken = localStorage.getItem('authToken');
+        let liveUpdateCount = 0;
+
+        // WebSocket Connection
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('statusDot').className = 'w-3 h-3 bg-green-500 rounded-full';
+                document.getElementById('statusText').textContent = 'Connected';
+            };
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleLiveUpdate(message);
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                document.getElementById('statusDot').className = 'w-3 h-3 bg-red-500 rounded-full';
+                document.getElementById('statusText').textContent = 'Disconnected';
+                // Reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Handle live updates
+        function handleLiveUpdate(message) {
+            liveUpdateCount++;
+            document.getElementById('liveCount').textContent = liveUpdateCount;
+            
+            if (message.type === 'battle_result') {
+                // Add new battle to the list
+                addBattleCard(message.data);
+                incrementCounter('totalBattles');
+            } else if (message.type === 'benchmark_update') {
+                incrementCounter('benchmarksToday');
+                showNotification('New benchmark submitted!');
+            } else if (message.type === 'model_added') {
+                incrementCounter('totalModels');
+                showNotification('New model added: ' + message.data.name);
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-400');
+                btn.classList.add('border-transparent');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+            // Add active class to selected tab button
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            activeBtn.classList.remove('border-transparent');
+            activeBtn.classList.add('border-blue-500', 'text-blue-400');
+            
+            // Load tab data
+            if (tabName === 'battles') loadBattles();
+            else if (tabName === 'leaderboard') loadLeaderboard();
+            else if (tabName === 'models') loadModels();
+        }
+
+        // Load battles
+        async function loadBattles() {
+            try {
+                const response = await fetch(`${API_BASE}/benchmarks/battles/recent`);
+                const battles = await response.json();
+                const container = document.getElementById('battlesContainer');
+                container.innerHTML = '';
+                battles.forEach(battle => addBattleCard(battle, container));
+            } catch (error) {
+                console.error('Error loading battles:', error);
+            }
+        }
+
+        // Add battle card
+        function addBattleCard(battle, container = null) {
+            if (!container) container = document.getElementById('battlesContainer');
+            
+            const card = document.createElement('div');
+            card.className = 'battle-card bg-gray-800 rounded-lg p-6 border border-gray-700';
+            
+            const winnerClass = battle.winner_id ? 'text-green-400' : 'text-yellow-400';
+            const winnerText = battle.winner_id ? `Winner: Model ${battle.winner_id}` : 'Draw';
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Battle #${battle.id || 'New'}</h3>
+                    <span class="text-sm ${winnerClass}">${winnerText}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-gray-400 text-sm">Model 1</p>
+                        <p class="font-bold">${battle.model1?.name || `ID: ${battle.model1_id}`}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">VS</p>
+                        <p class="text-2xl">⚔️</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Model 2</p>
+                        <p class="font-bold">${battle.model2?.name || `ID: ${battle.model2_id}`}</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-700">
+                    <p class="text-sm text-gray-400">Type: ${battle.battle_type}</p>
+                    <p class="text-sm text-gray-400">Time: ${new Date(battle.created_at).toLocaleString()}</p>
+                </div>
+            `;
+            
+            container.insertBefore(card, container.firstChild);
+            
+            // Keep only 10 most recent battles
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Load leaderboard
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch(`${API_BASE}/benchmarks/leaderboard`);
+                const leaderboard = await response.json();
+                const tbody = document.getElementById('leaderboardBody');
+                tbody.innerHTML = '';
+                
+                leaderboard.forEach((entry, index) => {
+                    const row = document.createElement('tr');
+                    row.className = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
+                    row.innerHTML = `
+                        <td class="px-6 py-4">${index + 1}</td>
+                        <td class="px-6 py-4 font-medium">${entry.name} v${entry.version}</td>
+                        <td class="px-6 py-4">
+                            <span class="text-green-400">${entry.win_rate}%</span>
+                        </td>
+                        <td class="px-6 py-4">${entry.total_battles}</td>
+                        <td class="px-6 py-4">${entry.wins}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+            }
+        }
+
+        // Load models
+        async function loadModels() {
+            try {
+                const response = await fetch(`${API_BASE}/models/`);
+                const models = await response.json();
+                const container = document.getElementById('modelsContainer');
+                container.innerHTML = '';
+                
+                models.forEach(model => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-gray-800 rounded-lg p-6 border border-gray-700';
+                    card.innerHTML = `
+                        <h3 class="text-lg font-bold mb-2">${model.name}</h3>
+                        <p class="text-gray-400 text-sm mb-2">Version: ${model.version}</p>
+                        <p class="text-gray-400 text-sm mb-2">Type: ${model.model_type}</p>
+                        <p class="text-gray-400 text-sm mb-2">Parameters: ${model.parameters_count || 'N/A'}</p>
+                        <button onclick="startBattle(${model.id})" class="mt-4 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition">
+                            Start Battle
+                        </button>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+
+        // Form handlers
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams(formData)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    localStorage.setItem('authToken', authToken);
+                    hideLoginModal();
+                    showNotification('Login successful!');
+                } else {
+                    showNotification('Login failed!', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('Login error!', 'error');
+            }
+        });
+
+        document.getElementById('benchmarkForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            // Convert to proper types
+            Object.keys(data).forEach(key => {
+                if (data[key] && key !== 'test_name') {
+                    data[key] = parseFloat(data[key]);
+                }
+            });
+            
+            try {
+                const response = await fetch(`${API_BASE}/benchmarks/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showNotification('Benchmark submitted successfully!');
+                    e.target.reset();
+                } else {
+                    showNotification('Failed to submit benchmark!', 'error');
+                }
+            } catch (error) {
+                console.error('Benchmark submission error:', error);
+                showNotification('Submission error!', 'error');
+            }
+        });
+
+        // Helper functions
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+        }
+
+        function incrementCounter(elementId) {
+            const element = document.getElementById(elementId);
+            const current = parseInt(element.textContent);
+            element.textContent = current + 1;
+        }
+
+        function showNotification(message, type = 'success') {
+            // Simple notification (you can enhance this with a toast library)
+            console.log(`${type}: ${message}`);
+        }
+
+        // Initialize
+        connectWebSocket();
+        loadBattles();
+        
+        // Load initial stats (mock data for demo)
+        document.getElementById('totalModels').textContent = '12';
+        document.getElementById('totalBattles').textContent = '47';
+        document.getElementById('benchmarksToday').textContent = '8';
+    </script>
+</body>
+</html>

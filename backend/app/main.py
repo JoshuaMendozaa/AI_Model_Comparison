@@ -7,7 +7,7 @@ import json
 import asyncio
 from app.config import settings
 from app.core.events import event_publisher
-from app.api.v1 import auth, models, benchmarks, battles, users
+from app.api.v1 import auth, models
 from app.core.database import async_engine, get_db
 
 @asynccontextmanager
@@ -22,9 +22,11 @@ async def lifespan(app: FastAPI):
     await async_engine.dispose()
 
 app = FastAPI(
-    title=settings.AI_b,
-    version="1.0.0",
-    lifespan=lifespan
+    title=settings.APP_NAME,                 # <-- was settings.AI_b
+    version=settings.APP_VERSION,
+    debug=settings.DEBUG,
+    docs_url=f"{settings.API_V1_PREFIX}/docs",
+    redoc_url=f"{settings.API_V1_PREFIX}/redoc",
 )
 
 #CORS configuration
@@ -39,7 +41,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(auth.routher, prefix="/api/v1/authq", tags=["auth"])
 app.include_router(models.router, prefix="api/v1/models", tags=["AI models"])
-app.include_router(benchmarks.router, prefix=("api/v1/benchmarks"), tags=["benchmarks"])
+#app.include_router(benchmarks.router, prefix=("api/v1/benchmarks"), tags=["benchmarks"])
 
 # WebSocket manager for real-time updates
 class ConnectionManager:
