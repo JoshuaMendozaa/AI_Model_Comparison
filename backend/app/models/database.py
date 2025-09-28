@@ -13,7 +13,8 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    benchmarks = relationship("ai_model", back_populates="owner")
+    # Fixed relationship name
+    models = relationship("AIModel", back_populates="owner")
 
 class AIModel(Base):
     __tablename__ = "ai_models"
@@ -23,15 +24,15 @@ class AIModel(Base):
     version = Column(String, nullable=False)
     description = Column(Text)
     model_type = Column(String)
-    parameters_count = Column(String)  # Store model parameters as JSON
+    parameters_count = Column(String)  # Store as string for flexibility
     owner_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    model_metadata = Column(JSON, default={})  # Additional model metadata
+    model_metadata = Column(JSON, default={})
+    is_active = Column(Boolean, default=True)  # Added missing field
     
     owner = relationship("User", back_populates="models")
     benchmarks = relationship("Benchmark", back_populates="model")
-
 
 class Benchmark(Base):
     __tablename__ = "benchmarks"
@@ -48,7 +49,7 @@ class Benchmark(Base):
     latency_p99 = Column(Float)
     test_dataset = Column(String)
     test_size = Column(Integer)
-    model_metadata = Column(JSON, default={})  # Additional benchmark metadata
+    model_metadata = Column(JSON, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     model = relationship("AIModel", back_populates="benchmarks")
@@ -61,8 +62,8 @@ class Battle(Base):
     model2_id = Column(Integer, ForeignKey("ai_models.id"))
     winner_model_id = Column(Integer, ForeignKey("ai_models.id"), nullable=True)
     battle_type = Column(String)
-    battle_config = Column(JSON, default={})  # Configuration details for the battle
-    results = Column(JSON, default={})  # Store battle results as JSON
+    battle_config = Column(JSON, default={})
+    results = Column(JSON, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     model1 = relationship("AIModel", foreign_keys=[model1_id])

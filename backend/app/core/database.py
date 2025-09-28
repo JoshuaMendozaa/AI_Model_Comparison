@@ -2,14 +2,20 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from app.config import settings
 
-# Read the variables by NAME
-SYNC_DATABASE_URL  = os.getenv("SYNC_DATABASE_URL") or os.getenv("DATABASE_URL")
-ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL")
+# Use settings from config
+SYNC_DATABASE_URL = settings.SYNC_DATABASE_URL or settings.DATABASE_URL
+ASYNC_DATABASE_URL = settings.ASYNC_DATABASE_URL
 
 # Derive async URL from sync if not provided
 if not ASYNC_DATABASE_URL and SYNC_DATABASE_URL:
-    ASYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("+psycopg2", "+asyncpg")
+    if "+psycopg2" in SYNC_DATABASE_URL:
+        ASYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("+psycopg2", "+asyncpg")
+    elif "postgresql://" in SYNC_DATABASE_URL:
+        ASYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+    else:
+        ASYNC_DATABASE_URL = SYNC_DATABASE_URL
 
 if not SYNC_DATABASE_URL:
     raise RuntimeError("Missing DB URL: set SYNC_DATABASE_URL or DATABASE_URL")

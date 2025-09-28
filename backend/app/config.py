@@ -1,45 +1,37 @@
-# config.py - application configuration settings\
-#hold app settings like database URL, secret keys, etc.
 from pydantic_settings import BaseSettings
 from typing import Optional
-from pydantic import Field, AliasChoices
+from pydantic import Field
 
 class Settings(BaseSettings):
-    #Project info
-    #metadata for the project like name, version, etc.
-    APP_NAME: str = "AI Battle"
+    # Project info
+    APP_NAME: str = "AI Model Battle"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
 
     # Database settings
-    # url for connecting to the database
-    DATABASE_URL: str = Field(validation_alias=AliasChoices("DATABASE_URL", "SYNC_DATABASE_URL"))
-    ASYNC_DATABASE_URL: Optional[str] = None
-    # url for connecting to the synchronous database (for Alembic migrations)
-    # used by Alembic which does not support async DB connections
+    DATABASE_URL: str = Field(default="postgresql+psycopg2://battleuser:battlepass@postgres/ai_battle_db")
     SYNC_DATABASE_URL: Optional[str] = None
-
-    #REDIS
-    # url for connecting to the Redis server
-    REDIS_URL: Optional[str] = 'redis://localhost:6379/0'
+    ASYNC_DATABASE_URL: Optional[str] = None  # Add this field to accept the env var
+    
+    # Redis
+    REDIS_URL: str = Field(default="redis://redis:6379/0")
 
     # InfluxDB
-    # url and credentials for connecting to InfluxDB
-    INFLUXDB_URL: str = "http://localhost:8086"
-    INFLUXDB_TOKEN: str 
-    INFLUXDB_ORG: str = "ai_b"
+    INFLUXDB_URL: str = "http://influxdb:8086"
+    INFLUXDB_TOKEN: str = "your-token-here"
+    INFLUXDB_ORG: str = "ai-battle"
     INFLUXDB_BUCKET: str = "benchmarks"
 
-    #Security
-    # settings for JWT authentication
-    SECRET_KEY: str
+    # Security
+    SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  #
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
 
-    class Config: #pydantic settings config class for loading env variables
-        env_file = ".env"
-        "extra = 'ignore' #ignore extra env variables not defined in this class"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore"  # This allows extra fields and ignores them
+    }
 
-settings = Settings() #instance of settings to be imported and used throughout the appA
+settings = Settings()

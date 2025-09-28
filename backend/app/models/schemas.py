@@ -17,37 +17,34 @@ class BattleType(str, Enum):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    username: str
     password: str
 
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
-    username: str
     is_active: bool
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
 
-#AI Model Schemas
+# AI Model Schemas
 class AIModelCreate(BaseModel):
     name: str
     version: str
     description: Optional[str] = None
-    model_type: ModelType
-    parameters_count: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    model_type: Optional[str] = None
+    parameters_count: Optional[str] = None
+    model_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class AIModelUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    model_metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
 
 class AIModelResponse(BaseModel):
@@ -55,22 +52,21 @@ class AIModelResponse(BaseModel):
     name: str
     version: str
     description: Optional[str]
-    model_type: str
-    parameters_count: Optional[int]
+    model_type: Optional[str]
+    parameters_count: Optional[str]
     owner_id: int
     created_at: datetime
     updated_at: Optional[datetime]
-    is_active: bool
-    metadata: Dict[str, Any]
+    is_active: bool = True
+    model_metadata: Dict[str, Any]
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
-#Benchmark Schemas
+# Benchmark Schemas
 class BenchmarkCreate(BaseModel):
     model_id: int
     test_name: str
-    accuracy: Optional[float] = Field(None, ge=0.0, le=100)
+    accuracy: Optional[float] = Field(None, ge=0.0, le=100.0)
     speed_ms: Optional[float] = Field(None, ge=0.0)
     memory_mb: Optional[float] = Field(None, ge=0.0)
     throughput: Optional[float] = Field(None, ge=0.0)
@@ -79,7 +75,7 @@ class BenchmarkCreate(BaseModel):
     latency_p99: Optional[float] = Field(None, ge=0.0)
     test_dataset: Optional[str] = None
     test_size: Optional[int] = Field(None, ge=0)
-    metadata: Optional[Dict[str, Any]] = {}
+    model_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class BenchmarkResponse(BaseModel):
     id: int
@@ -94,34 +90,32 @@ class BenchmarkResponse(BaseModel):
     latency_p99: Optional[float]
     test_dataset: Optional[str]
     test_size: Optional[int]
-    metadata: Dict[str, Any]
+    model_metadata: Dict[str, Any]
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
-#Battle Schemas
+# Battle Schemas
 class BattleCreate(BaseModel):
     model1_id: int
     model2_id: int
-    battle_type: BattleType
-    battle_config: Optional[Dict[str, Any]] = {}
+    battle_type: str
+    battle_config: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class BattleResponse(BaseModel):
     id: int
     model1_id: int
     model2_id: int
     winner_model_id: Optional[int]
-    battle_type: BattleType
+    battle_type: str
     battle_config: Dict[str, Any]
     results: Dict[str, Any]
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
-#WebSocket Schemas
+# WebSocket Schemas
 class WSMessage(BaseModel):
-    type: str #benchmark_update, battle_update, notification
+    type: str
     data: Dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)

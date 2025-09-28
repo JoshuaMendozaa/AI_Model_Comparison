@@ -22,14 +22,15 @@ async def lifespan(app: FastAPI):
     await async_engine.dispose()
 
 app = FastAPI(
-    title=settings.APP_NAME,                 # <-- was settings.AI_b
+    title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
     docs_url=f"{settings.API_V1_PREFIX}/docs",
     redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    lifespan=lifespan
 )
 
-#CORS configuration
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Adjust as needed for production
@@ -38,14 +39,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers
-app.include_router(auth.routher, prefix="/api/v1/authq", tags=["auth"])
-app.include_router(models.router, prefix="api/v1/models", tags=["AI models"])
-#app.include_router(benchmarks.router, prefix=("api/v1/benchmarks"), tags=["benchmarks"])
+# Include API routers - FIXED TYPO HERE
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(models.router, prefix="/api/v1/models", tags=["AI models"])
 
 # WebSocket manager for real-time updates
 class ConnectionManager:
-    def __intit__(self):
+    def __init__(self):  # FIXED TYPO HERE
         self.active_connections: List[WebSocket] = []
         self.redis_client = None
         self.pubsub = None
@@ -62,35 +62,47 @@ class ConnectionManager:
             self.listen_task = asyncio.create_task(self.listen_to_redis())
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
         if not self.active_connections and self.listen_task:
             self.listen_task.cancel()
             self.listen_task = None
-            asyncio.create_task(self.pubsub.unsubscribe("benchmarks", "battles", "models"))
-            asyncio.create_task(self.redis_client.close())
+            asyncio.create_task(self.cleanup_redis())
+
+    async def cleanup_redis(self):
+        if self.pubsub:
+            await self.pubsub.unsubscribe("benchmarks", "battles", "models")
+        if self.redis_client:
+            await self.redis_client.close()
             self.redis_client = None
             self.pubsub = None
     
-    async def redis_listener(self):
-       while True:
-           try:
-               message = await self.pubsub.get_message(ignore_subscribe_message=True)
-               if message:
-                     await self.broadcast(message['data'].decode('utf-8'))
-           except Exception as e:
+    async def listen_to_redis(self):  # FIXED METHOD NAME
+        while True:
+            try:
+                message = await self.pubsub.get_message(ignore_subscribe_messages=True)
+                if message and message['type'] == 'message':
+                    await self.broadcast(message['data'].decode('utf-8'))
+            except Exception as e:
                 print(f"Redis listener error: {e}")
-           await asyncio.sleep(0.01)  # Small sleep to prevent busy waiting
+            await asyncio.sleep(0.01)  # Small sleep to prevent busy waiting
 
     async def broadcast(self, message: str):
+        disconnected = []
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except:
-                self.active_connections.remove(connection)
+                disconnected.append(connection)
+        
+        # Remove disconnected clients
+        for conn in disconnected:
+            if conn in self.active_connections:
+                self.active_connections.remove(conn)
 
 manager = ConnectionManager()
 
-@app.websocket("ws")
+@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
@@ -103,12 +115,11 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/")
 async def read_root():
     return {
-        "name": settings.proj_name,
-        "version": "1.0.0",
+        "name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs",
+        "docs": f"{settings.API_V1_PREFIX}/docs",
         "websocket_endpoint": "ws://localhost:8000/ws"
-
     }
 
 @app.get("/health")
