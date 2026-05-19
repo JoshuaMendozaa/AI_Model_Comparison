@@ -4,9 +4,11 @@ import os
 from datetime import datetime
 
 INFLUXDB_URL = "http://influxdb:8086"
-INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
-INFLUXDB_ORG = os.getenv("INFLUXDB_ORG")
-INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET")
+INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN") or ""
+INFLUXDB_ORG = os.getenv("INFLUXDB_ORG") or ""
+INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET") or ""
+
+
 
 #create a single client instance to be reused across requests
 client = InfluxDBClient(
@@ -21,17 +23,17 @@ query_api = client.query_api()
 def write_benchmark(model_name: str, metric: str, value: float):
     "Write a single benchmark data point to InfluxDB"
     point = (
-        Point("benchmark")
-        .tag("model", model_name)
+        Point("benchmark")  #Point is a data structure representing a single measurement in InfluxDB, with a measurement name of "benchmark"
+        .tag("model_name", model_name)  #tag is a key-value pair used for indexing and querying in InfluxDB, here we add a tag for the model name
         .tag("metric", metric)
-        .field("value", value)
+        .field("value", value)  #field is the actual data value we want to store, here we add a field for the metric value
         .time(datetime.utcnow(), WritePrecision.NS)
     )
     write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
 
 def query_benchmarks(model_name: str, metric: str, hours: int = 1):
     "Query recent benchmark scores for a model"
-    query = f'''
+    query = f'''    
         from(bucket: "{INFLUXDB_BUCKET}")
             |> range(start: -{hours}h)
             |> filter(fn: (r) => r._measurement == "benchmark")
@@ -62,6 +64,7 @@ def query_latest_scores():
     '''
     tables = query_api.query(query)
     results = []
+    print(f"DEBUG: tables = {tables}")
     for table in tables:
         for record in table.records:
             results.append({
@@ -70,4 +73,5 @@ def query_latest_scores():
                 "metric": record["metric"],
                 "value": record.get_value()
             })
+    print(f"DEBUG: results = {results}")
     return results

@@ -31,13 +31,13 @@ class ModelResponse(BaseModel): #Get response schema for returning AI model deta
 
 
 # --- Routes --- #
-@router.post("/", response_model=ModelResponse) #Endpoint to register a new AI model, expects a ModelCreate Object in the request body and returns a ModelResponse Object
-async def register_model(model: ModelCreate, db: AsyncSession = Depends(get_db)):
-    new_model = AIModel(**model.model_dump())   #
-    db.add(new_model)
-    await db.commit()
-    await db.refresh(new_model)
-    return new_model
+@router.post("/", response_model=ModelResponse) #Endpoint to register a new AI model, response_model specifies that the response will be serialized using the ModelResponse schema
+async def register_model(model: ModelCreate, db: AsyncSession = Depends(get_db)): #db parameter is an asynchronous database session provided by the get_db dependency
+    new_model = AIModel(**model.model_dump())   #**model.model_dump()converts the incoming ModelCreate Pydantic object into a dictionary and unpacks it as keyword arguments to create a new AIModel instance
+    db.add(new_model)   #adds the new model instance to the database session
+    await db.commit()   #commits the transaction to save the new model to the databsase
+    await db.refresh(new_model) #refreshes the new_model instance to get the updated data from the database, including the generated ID and timestamp
+    return new_model    #returns the newly created model, which will be serialized to JSON using the ModelResponse schema defined earlier
 
 @router.get("/", response_model=list[ModelResponse])    #Endpoint to list all registered AI models, returns a list of ModelResponse Objects
 async def list_models(db: AsyncSession = Depends(get_db)):
@@ -51,3 +51,9 @@ async def get_model(model_id: int, db: AsyncSession = Depends(get_db)):
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
     return model
+
+#this file defines the api endpoints for managing ai models, including registring 
+#new models, listing all models, and retrieving details of a specific model.
+# It uses SQLAlchemy for database interactions and Pydantic for data validation and serialization.
+# register_model endpoint allows clients to submit new ai model, which is then stored in 
+#postgres database, while list_models and get_model endpoints allow clients to retrieve model information.
