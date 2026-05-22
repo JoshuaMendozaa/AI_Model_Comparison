@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.database import engine, Base
 from app.routers import models
 from app.routers import benchmarks
+from app.routers import ws
 from app.services.influx import client, write_api, query_api
 
 app = FastAPI(
@@ -27,6 +28,7 @@ async def startup():
 
 app.include_router(models.router)
 app.include_router(benchmarks.router)
+app.include_router(ws.router)
 
 @app.get("/health")
 async def health_check():

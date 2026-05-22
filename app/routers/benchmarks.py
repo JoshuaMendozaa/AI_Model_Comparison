@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.influx import write_benchmark, query_benchmarks, query_latest_scores
+from app.services.websocket_manager import manager
 
 router = APIRouter(prefix="/benchmarks", tags=["Benchmarks"])
 
@@ -34,6 +35,16 @@ async def submit_benchmark(benchmark: BenchmarkSubmit):
         metric=benchmark.metric,
         value=benchmark.value
     )
+
+    #Broadcast update to all connected WebSocket clients - this is done in the write_benchmark function after writing to InfluxDB, so that clients get real-time updates whenever a new benchmark score is submitted.
+    await manager.broadcast({
+        "type": "benchmark_update",
+        "model_name": benchmark.model_name,
+        "metric": benchmark.metric,
+        "value": benchmark.value,
+        "leaderboard": query_latest_scores()  #include the latest leaderboard data in the broadcast so clients can update their displays immediately
+    })
+
     return {
         "status": "recorded",
         "model_name": benchmark.model_name,
