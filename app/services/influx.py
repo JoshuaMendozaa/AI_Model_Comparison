@@ -8,6 +8,18 @@ INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN") or ""
 INFLUXDB_ORG = os.getenv("INFLUXDB_ORG") or ""
 INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET") or ""
 
+#helper function to serialize influxdb records, converting datetime objects to ISO format strings for JSON serialization
+def serialize_record(records: list[dict]) -> list[dict]:
+    serialized = []
+    for record in records:
+        serialized_record = []
+        for key, value in record.items():
+            if isinstance(value, datetime):
+                serialized_record[key] = value.isoformat()
+            else:
+                serialized_record[key] = value
+        serialized.append(serialized_record)
+    return serialized
 
 
 #create a single client instance to be reused across requests
@@ -56,7 +68,7 @@ def query_benchmarks(model_name: str, metric: str, hours: int = 1):
 def query_latest_scores():
     "Get the most recent score per model per metric - for the leaderboard"
     query = f'''
-        from(bucket: "{INFLUXDB_BUCKET}")
+        from(bucket: "{INFLUXDB_BUCKET}")   
             |> range(start: -24h)
             |> filter(fn: (r) => r._measurement == "benchmark")
             |> group(columns: ["model_name", "metric"])
@@ -68,7 +80,7 @@ def query_latest_scores():
     for table in tables:
         for record in table.records:
             results.append({
-                "time": record.get_time(),
+                "time": record.get_time().isoformat(),  #convert datetime to ISO string for JSON serialization
                 "model_name": record["model_name"],
                 "metric": record["metric"],
                 "value": record.get_value()

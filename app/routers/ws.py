@@ -1,29 +1,39 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.websocket_manager import manager
 from app.services.influx import query_latest_scores
+from app.services.redis_service import get_cached_leaderboard, get_pubsub
+import json
+import asyncio
 
-router = APIRouter(tags=["WebSocket"]) #This file defines a WebSocket endpoint for real-time leaderboard updates. Clients can connect to this endpoint to receive live updates whenever new benchmark scores are submitted. The endpoint listens for WebSocket connections at /ws/leaderboard and uses the ConnectionManager to manage active connections and broadcast messages to all connected clients. Whenever a new benchmark score is recorded, the latest leaderboard data is queried from InfluxDB and broadcasted to all clients, allowing them to see real-time changes in the leaderboard as new scores come in.
+router = APIRouter(tags=["WebSocket"])
 
 @router.websocket("/ws/leaderboard")
 async def leaderboard_websocket(websocket: WebSocket):
     await manager.connect(websocket)
 
     try:
-        #send current leaderboard immediately upon connection
-        current_scores = query_latest_scores()
-        await websocket.send_text(
-            __import__('json').dumps({
+        # Send current leaderboard on connect — try cache first
+        try:
+            leaderboard = await get_cached_leaderboard() or query_latest_scores()
+            await websocket.send_text(json.dumps({
                 "type": "init",
-                "leaderboard": current_scores
-            })
-        )
+                "leaderboard": leaderboard
+            }))
+        except Exception as e:
+            print(f"⚠️ Could not fetch initial leaderboard: {e}")
+            await websocket.send_text(json.dumps({
+                "type": "init",
+                "leaderboard": []
+            }))
 
-        # Keep connection open to listen for incoming messages (if needed in the future)
+        # Keep connection alive, listen for pings
         while True:
             data = await websocket.receive_text()
-            #Client can send "ping" to check connection health, or we can implement other interactions in the future
             if data == "ping":
                 await websocket.send_text('{"type": "pong"}')
-    
+
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
