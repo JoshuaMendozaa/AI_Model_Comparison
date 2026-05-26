@@ -20,7 +20,7 @@ async def leaderboard_websocket(websocket: WebSocket):
                 "leaderboard": leaderboard
             }))
         except Exception as e:
-            print(f"⚠️ Could not fetch initial leaderboard: {e}")
+            print(f"Could not fetch initial leaderboard: {e}")
             await websocket.send_text(json.dumps({
                 "type": "init",
                 "leaderboard": []
