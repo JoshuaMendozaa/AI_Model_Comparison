@@ -51,5 +51,89 @@ async def start_battle(request: BattleRequest):
     if request.category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of {VALID_CATEGORIES}")
     
-    if len(request.models) < 2:
+    if not request.models or len(request.models) < 2:   #we need at least 2 models to have a battle, otherwise it's not really a battle. If the client doesn't provide a list of models, or if they provide a list with less than 2 models, we raise a 400 Bad Request error with a message indicating that at least 2 models must be provided for a battle.
         raise HTTPException(status_code=400, detail="At least 2 models must be provided for a battle.")
+    
+    prompt = request.prompt or random.choice(PROMPT_LIBRARY[request.category])   #if the client doesn't provide a prompt, we select a random prompt from the PROMPT_LIBRARY based on the requested category. This ensures that we always have a valid prompt to use for the battle, even if the client doesn't specify one.
+
+    print(f"Starting battle with prompt: {prompt} for models: {request.models}")
+
+    await manager.broadcast({
+        "type": "battle_start",
+        "category": request.category,
+        "models": request.models,
+        "prompt": prompt
+    })
+
+    # Run models and judge asynchronously
+    print("> Running models...")
+    model_tasks = [run_model(model, prompt) for model in request.models]    #create list of asynchronous tasks to run each model with the given prompt.
+    battle_results = await asyncio.gather(*model_tasks) #run_model is an asynchronous function that takes a model name and a prompt, runs the model with the prompt, and returns the result. By using asyncio.gather, we can run all the models concurrently and wait for all of them to finish before proceeding to the judging step.
+    #battle_results will be a list of results corresponding to each model, in the same order as the request.models list. Each result should contain the model's response to the prompt, and possibly other metadata like latency or token usage.
+
+    print("> Judging results...")
+    results = []
+    for result in battle_results:
+        if result.error:
+            print(f"Error running model: {result.error}")
+            continue
+        else:
+            print(f"Model response: {result.model_name}...")
+            scores = judge_response(prompt, result.response)
+
+        if not result.error:
+            write_benchmark(result.model_name, "overall", scores["overall"])  #write the overall score to InfluxDB for benchmarking purposes, so we can track how each model performs over time and see trends in their performance.
+            write_benchmark(result.model_name, "latency_ms", result.latency_ms)  #also write latency as a benchmark metric, since it's an important aspect of model performance that we want to track and compare across models.
+            write_benchmark(result.model_name, "tokens_per_second", result.tokens_per_second)  #also write tokens per second as a benchmark metric, since it's another important aspect of model performance that we want to track and compare across models.
+            
+        results.append({
+            "model": result.model_name,
+            "response": result.response,
+            "latency_ms": result.latency_ms,
+            "tokens_per_second": result.tokens_per_second,
+            "scores": scores,
+            "error": result.error
+        })
+
+    # Determine winner based on overall score
+    valid_results = [r for r in results if not r["error"]]
+    winner = max(valid_results, key=lambda r: r["scores"]["overall"])["model"] if valid_results else "No valid responses"
+
+    #update leaderboard cache in Redis
+    await invalidate_cache()
+    leaderboard = query_latest_scores()
+    await set_cached_leaderboard(leaderboard)
+
+    #broadcast results to WebSocket clients
+    await manager.broadcast({
+        "type": "battle_results",
+        "category": request.category,
+        "prompt": prompt,
+        "results": results,
+        "winner": winner,
+        "leaderboard": leaderboard
+    })
+       
+    print(f"Battle complete! Winner: {winner}")
+
+    import uuid
+    return {
+        "battle_id": str(uuid.uuid4()),  #generate a unique ID for this battle, which can be used for tracking and referencing the battle in the future if needed.
+        "category": request.category,
+        "prompt": prompt,
+        "results": results,
+        "winner": winner
+    }
+
+@router.get("/prompts/{category}")
+async def get_prompts(category: str):
+    "preview available prompts for a category"
+    if category not in VALID_CATEGORIES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid category. Must be one of {VALID_CATEGORIES}"
+        )
+    return {
+        "category": category,
+        "prompts": PROMPT_LIBRARY[category]
+    }
