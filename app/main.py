@@ -7,6 +7,7 @@ from app.routers import ws
 from app.routers import battle
 from app.services.influx import client, write_api, query_api
 
+
 app = FastAPI(
     title="AI Model Battle",
     description="Real-time AI benchmark battle system",

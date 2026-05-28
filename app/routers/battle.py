@@ -37,11 +37,13 @@ class BattleResponse(BaseModel):
 async def get_available_models():
     # Implementation for fetching available models
     import ollama
+    import os
     try:
-        models = ollama.list()  #fetch the list of available models from ollama
+        client = ollama.Client(base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"))
+        models = client.list()  #fetch the list of available models from ollama
         return {
             "models": [m["name"] for m in models["models"]],   #return the names of the models in a list
-            "judge": "deepseek"
+            "judge": os.getenv("JUDGE_MODEL", "deepseek-r1")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching models: {e}")

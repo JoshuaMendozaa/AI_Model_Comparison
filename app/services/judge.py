@@ -1,8 +1,11 @@
 import ollama
 import json
 import re
+import os
 
-JUDGE_MODEL = "deepseek/judge:latest"
+OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+client = ollama.Client(base_url=OLLAMA_HOST)
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", "deepseek-r1")
 
 JUDGE_PROMPT = """You are an expert AI evaluator. Score the following response to this prompt.
 
