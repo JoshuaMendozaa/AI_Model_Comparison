@@ -1,6 +1,13 @@
 import ollama 
 import time
 from dataclasses import dataclass
+import os
+
+#Point ollama client at the host machine, not localhost, since the FastAPI server is running inside a Docker container. host.docker.internal is a special DNS name that resolves to the internal IP address of the host machine from within the Docker container, allowing the containerized application to communicate with services running on the host.
+OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+
+#Create a configured client instance that points to the ollama server running on the host machine, so we can use this client to send request to the ollama server
+ollama_client = ollama.Client(base_url=OLLAMA_HOST)
 
 @dataclass
 class BattleResult:
@@ -16,7 +23,7 @@ async def run_model(model_name: str, prompt: str) -> BattleResult:
     "Send a prompt to an ollama model and measure performance metrics."
     start_time = time.time()
     try:
-        response = ollama.chat(
+        response = ollama_client.chat(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             options={

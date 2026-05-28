@@ -38,7 +38,7 @@ def write_benchmark(model_name: str, metric: str, value: float):
         Point("benchmark")  #Point is a data structure representing a single measurement in InfluxDB, with a measurement name of "benchmark"
         .tag("model_name", model_name)  #tag is a key-value pair used for indexing and querying in InfluxDB, here we add a tag for the model name
         .tag("metric", metric)  #
-        .field("value", value)  #field is the actual data value we want to store, here we add a field for the metric value
+        .field("value", float(value))  #field is the actual data value we want to store, here we add a field for the metric value
         .time(datetime.utcnow(), WritePrecision.NS)
     )
     write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
