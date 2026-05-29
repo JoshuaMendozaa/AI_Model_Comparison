@@ -1,16 +1,10 @@
-# database.py used to set up the database connection and session management for the 
-# application using SQLAlchemy with async support. It defines the database URL, 
-# creates an asynchronous engine, and provides a session factory for managing 
-# database sessions in FastAPI endpoints. The Base class is defined for use in 
-# model definitions, and a dependency function is provided to yield a database 
-# session for each request.
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-import os
+import os 
 
-# Database configuration using environment variables for security and flexibility
-DATABASE_URL = (
-    f"postgresql+asyncpg://"    # Construct the database URL using the asyncpg driver for PostgreSQL, with credentials and database name from environment variables
+
+DATABASE_URL = (    #Construct the database URL using environment variables for the PostgreSQL connection param.
+    f"postgresql+asyncpg://"    
     f"{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
     f"@postgres:5432/{os.getenv('POSTGRES_DB')}"
 )
@@ -18,14 +12,23 @@ DATABASE_URL = (
 # The engine is the actual connection to Postgres
 engine = create_async_engine(DATABASE_URL, echo=True)   # Create an asynchronous engine for connecting to the PostgreSQL database, with echo enabled for logging SQL statements
 
-# SessionLocal is a factory that creates database sessions
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+#1 create the shopping cart FACTORY (blueprint for creating sessions)
+# sessions are the actual shopping carts that we use to interact with the database.
+# they are created from the factory, and we can have multiple sessions (shopping carts) active at the same time, 
+# each handling a different request or transaction.
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False) 
 
-# Base class that all our table models will inherit from
+
 class Base(DeclarativeBase):
     pass
 
 # Dependency — FastAPI will call this to get a DB session per request
+#  use the factory to create an individual shopping cart(session) for each request.
+# why would we need a request? Because we want to ensure that each request gets its own database session, 
+# which is important for handling concurrent requests and ensuring that database operations are properly isolated. 
+# By using a dependency, FastAPI can automatically manage the lifecycle of the database session, creating a new session 
+# for each request and closing it when the request is finished. This helps prevent issues like connection leaks and ensures 
+# that database resources are used efficiently.
 async def get_db():
     async with SessionLocal() as session:
         yield session
