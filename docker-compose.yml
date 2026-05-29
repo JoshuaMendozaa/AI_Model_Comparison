@@ -1,3 +1,4 @@
+# is the docker-compose-yml a container? No, the file itsself is not a container, but it defines how to run multiple continers together. It's like a blueprint for orchestrating multiple containers, specifying how they should be built, what environment variables they need, how they should communicate with each other, and how to manage their lifecycles. Each service defined in the docker-compose.yml corresponds to a container that will be created and run based on the specifications in the file.
 services: # Define the services that make up your application
 
   api:  

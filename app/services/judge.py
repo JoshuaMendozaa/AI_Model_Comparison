@@ -5,6 +5,7 @@ import os
 
 OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 client = ollama.Client(base_url=OLLAMA_HOST)
+
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "deepseek-r1")
 
 JUDGE_PROMPT = """You are an expert AI evaluator. Score the following response to this prompt.
@@ -20,33 +21,18 @@ Score the response on these 5 dimensions, each from 0 to 10:
 4. Conciseness: Is it free of unnecessary padding?
 5. Coherence: Is it well structured and easy to follow?
 
-Respond ONLY with a JSON object in this exact format, nothing else:
-{{
-  "correctness": <0-10>,
-  "reasoning": <0-10>,
-  "completeness": <0-10>,
-  "conciseness": <0-10>,
-  "coherence": <0-10>,
-  "overall": <0-100>,
-  "summary": "<one sentence explaining the score>"
-}}"""
+You MUST respond with ONLY a JSON object. No thinking tags, no explanation, no extra text.
+Respond with ONLY this exact format:
+{{"correctness": 0, "reasoning": 0, "completeness": 0, "conciseness": 0, "coherence": 0, "overall": 0, "summary": "one sentence"}}"""
 
 def judge_response(prompt: str, response: str) -> dict:
     """Use deepseek/judge to judge a model response on 5 research dimensions"""
 
     if not response or len(response.strip()) < 10:
-        return {
-            "correctness": 0,
-            "reasoning": 0,
-            "completeness": 0,
-            "conciseness": 0,
-            "coherence": 0,
-            "overall": 0,
-            "summary": "No response provided"
-        }
+        return _default_score("No response provided")
 
     try:
-        result = ollama.chat(
+        result = client.chat(
             model=JUDGE_MODEL,
             messages=[{
                 "role": "user",
@@ -58,18 +44,23 @@ def judge_response(prompt: str, response: str) -> dict:
             options={"temperature": 0.1}  # low temp for consistent scoring
         )
 
-        content = result["message"]["content"].strip()
+        content = result["message"]["content"]
+        print(f"Raw judge response: {content}")
+        content = re.sub(r'<tool_call>.*?</tool_call>', '', content, flags=re.DOTALL).strip()  # remove any <tool_call> tags if model adds them
 
         # Extract JSON even if model adds extra text
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)   #use regex to extract the JSON object from the model's response. 
         if json_match:
             scores = json.loads(json_match.group())
+            required =  ["correctness", "reasoning", "completeness", "conciseness", "coherence"]
             # Ensure overall is weighted average if not provided correctly
-            if "overall" not in scores:
-                dims = ["correctness", "reasoning", "completeness", "conciseness", "coherence"]
-                avg = sum(scores.get(d, 0) for d in dims) / len(dims)
-                scores["overall"] = round(avg * 10, 1)
-            return scores
+            if all(k in scores for k in required):
+                if "overall" not in scores:
+                    avg = sum(scores[k] for k in required) / len(required)
+                    scores["overall"] = round(avg * 10, 1)
+                print(f"Judge scores: {scores}")
+                return scores
+        return _default_score("Model did not return valid JSON scores")
 
     except Exception as e:
         print(f"Judge error: {e}")
@@ -82,4 +73,15 @@ def judge_response(prompt: str, response: str) -> dict:
         "coherence": 5,
         "overall": 50,
         "summary": "Scoring unavailable"
+    }
+
+def _default_score(reason: str) -> dict:
+    return {
+        "correctness": 0,
+        "reasoning": 0,
+        "completeness": 0,
+        "conciseness": 0,
+        "coherence": 0,
+        "overall": 0,
+        "summary": reason
     }
