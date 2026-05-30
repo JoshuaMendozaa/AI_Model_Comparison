@@ -4,7 +4,7 @@ import re
 import os
 
 OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-client = ollama.Client(base_url=OLLAMA_HOST)
+client = ollama.Client(host=OLLAMA_HOST)
 
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "deepseek-r1")
 
