@@ -1,0 +1,71 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs: 
+    test:
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:15
+                env:
+                    POSTGRES_USER: admin
+                    POSTGRES_PASSWORD: secret
+                    POSTGRES_DB: ai_battle
+                ports: 
+                    -5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+                
+            redis:
+                image: redis:7
+                ports:
+                    - 6379:6379
+                options: >-
+                    --health-cmd "redis-cli ping"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5 
+            
+
+            influxdb:
+                image: influxdb:2.7
+                env:
+                    DOCKER_INFLUXDB_INIT_MODE: setup
+                    DOCKER_INFLUXDB_INIT_USERNAME: admin
+                    DOCKER_INFLUXDB_INIT_PASSWORD: secretpassword
+                    DOCKER_INFLUXDB_INIT_ORG: ai-battle
+                    DOCKER_INFLUXDB_INIT_BUCKET: benchmarks
+                    DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-token
+                ports:
+                    - 8086:8086
+            
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: "3.11"
+
+            - name: Install dependencies
+              env:
+                POSTGRES_USER: admin
+                POSTGRES_PASSWORD: secret
+                POSTGRES_DB: ai_battle
+                INFLUXDB_TOKEN: my-super-secret-token
+                INFLUXDB_ORG: ai-battle
+                INFLUXDB_BUCKET: benchmarks
+                REDIS_URL: redis://localhost:6379
+                OLLAMA_BASE_URL: http://localhost:11434
+            run: python -m pytest tests/ -v --tb=short
+            
