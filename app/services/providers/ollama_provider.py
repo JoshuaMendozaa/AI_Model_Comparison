@@ -7,7 +7,7 @@ import os
 OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 
 #Create a configured client instance that points to the ollama server running on the host machine, so we can use this client to send request to the ollama server
-ollama_client = ollama.Client(base_url=OLLAMA_HOST)
+ollama_client = ollama.Client(host=OLLAMA_HOST)
 
 @dataclass
 class BattleResult:
