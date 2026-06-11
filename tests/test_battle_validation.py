@@ -13,11 +13,12 @@ def test_battle_rejects_invalid_category():
     assert "Invalid category" in response.json()["detail"]
 
 def test_battle_rejects_single_model():
-    """A battle needs at least 3 models to compute"""
+    """A battle needs at least 2 models to compute"""
     response = client.post("/battle/start", json={
         "category": "reasoning",
         "models": ["llama3.2"]
     })
+    assert response.status_code in [400]
 
 def test_battle_rejects_missing_fields():
     """Pydantic should reject requests missing required fields"""
