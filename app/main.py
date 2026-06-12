@@ -6,12 +6,22 @@ from app.routers import benchmarks
 from app.routers import ws
 from app.routers import battle
 from app.services.influx import client, write_api, query_api
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI(  #This initializes a FastAPI app instance with metadata such as title, description, and version. This information is used in the automatically generated API documentation (Swagger UI) and helps users understand the purpose and version of the API.
     title="AI Model Battle",
     description="Real-time AI benchmark battle system",
-    version="1.0.0"
+    version="1.2.0"
+)
+
+#allows the frontend to call this api from a differenct origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],    #any origin allowed(for dev atm)
+    allow_credentials=True,
+    allow_methods=["*"],    #allows GET, POST, etc
+    allow_headers=["*"]     #allows Content-Type: app/json 
 )
 
 @app.on_event("startup")    #This decorator registers the startup function to be called when the FastAPI app starts up. The startup function is responsible for establishing a connection to the database and creating the necessary tables if they don't already exist. It includes a retry mechanism to handle potential connection issues gracefully, ensuring that the application can start successfully even if the database is temporarily unavailable.
