@@ -1,6 +1,5 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.websocket_manager import manager
-from app.services.influx import query_latest_scores
 from app.services.redis_service import get_cached_leaderboard, get_pubsub
 import json
 import asyncio
@@ -14,7 +13,7 @@ async def leaderboard_websocket(websocket: WebSocket):
     try:
         # Send current leaderboard on connect — try cache first
         try:
-            leaderboard = await get_cached_leaderboard() or query_latest_scores()
+            leaderboard = await get_cached_leaderboard() or []
             await websocket.send_text(json.dumps({
                 "type": "init",
                 "leaderboard": leaderboard

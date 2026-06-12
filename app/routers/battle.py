@@ -14,7 +14,7 @@ from app.services.influx import query_latest_scores
 
 router = APIRouter(prefix="/battle", tags=["battle"])
 
-VALID_CATEGORIES = ["reasoning", "coding", "math", "creative"]
+VALID_CATEGORIES = ["reasoning", "coding", "knowledge", "creative"]
 
 #Load prompts from start up
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "prompts.json"
@@ -25,9 +25,10 @@ class BattleRequest(BaseModel):
     category: str
     models: Optional[list[str]] = None
     prompt: Optional[str] = None    #if prompt is provided, use it. Otherwise, select random prompt from category
+    judge: str
 
 class BattleResponse(BaseModel):
-    hattle_id: str
+    battle_id: str
     category: str
     prompt: str
     results: list[dict]   #list of model results with scores and metrics
@@ -56,6 +57,9 @@ async def start_battle(request: BattleRequest):
     if not request.models or len(request.models) < 2:   #we need at least 2 models to have a battle, otherwise it's not really a battle. If the client doesn't provide a list of models, or if they provide a list with less than 2 models, we raise a 400 Bad Request error with a message indicating that at least 2 models must be provided for a battle.
         raise HTTPException(status_code=400, detail="At least 2 models must be provided for a battle.")
     
+    if request.judge in request.models:
+        raise HTTPException(status_code=400, detail="Judge cannot be in models due to bias")
+    
     prompt = request.prompt or random.choice(PROMPT_LIBRARY[request.category])   #if the client doesn't provide a prompt, we select a random prompt from the PROMPT_LIBRARY based on the requested category. This ensures that we always have a valid prompt to use for the battle, even if the client doesn't specify one.
 
     print(f"Starting battle with prompt: {prompt} for models: {request.models}")
@@ -64,7 +68,8 @@ async def start_battle(request: BattleRequest):
         "type": "battle_start",
         "category": request.category,
         "models": request.models,
-        "prompt": prompt
+        "prompt": prompt,
+        "judge": request.judge,
     })
 
     # Run models and judge asynchronously
@@ -81,12 +86,12 @@ async def start_battle(request: BattleRequest):
             continue
         else:
             print(f"Model response: {result.model_name}...")
-            scores = judge_response(prompt, result.response)
+            scores = judge_response(prompt, result.response, request.judge)
 
         if not result.error:
-            write_benchmark(result.model_name, "overall", scores["overall"])  #write the overall score to InfluxDB for benchmarking purposes, so we can track how each model performs over time and see trends in their performance.
-            write_benchmark(result.model_name, "latency_ms", result.latency_ms)  #also write latency as a benchmark metric, since it's an important aspect of model performance that we want to track and compare across models.
-            write_benchmark(result.model_name, "tokens_per_second", result.tokens_per_second)  #also write tokens per second as a benchmark metric, since it's another important aspect of model performance that we want to track and compare across models.
+            write_benchmark(result.model_name, "accuracy", scores["overall"], category=request.category, judge=request.judge)  #write the overall accuracy to InfluxDB for benchmarking purposes, so we can track how each model performs over time and see trends in their performance.
+            write_benchmark(result.model_name, "latency_ms", result.latency_ms, category=request.category, judge=request.judge)  #also write latency as a benchmark metric, since it's an important aspect of model performance that we want to track and compare across models.
+            write_benchmark(result.model_name, "tokens_per_second", result.tokens_per_second, category=request.category, judge=request.judge)  #also write tokens per second as a benchmark metric, since it's another important aspect of model performance that we want to track and compare across models.)
             
         results.append({
             "model": result.model_name,
@@ -102,9 +107,9 @@ async def start_battle(request: BattleRequest):
     winner = max(valid_results, key=lambda r: r["scores"]["overall"])["model"] if valid_results else "No valid responses"
 
     #update leaderboard cache in Redis
-    await invalidate_cache()
-    leaderboard = query_latest_scores()
-    await set_cached_leaderboard(leaderboard)
+    await invalidate_cache(request.category, request.judge)
+    leaderboard = query_latest_scores(request.category, request.judge)
+    await set_cached_leaderboard(leaderboard, request.category, request.judge, "accuracy")
 
     #broadcast results to WebSocket clients
     await manager.broadcast({

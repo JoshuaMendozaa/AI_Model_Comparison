@@ -12,7 +12,7 @@ INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET") or ""
 def serialize_record(records: list[dict]) -> list[dict]:
     serialized = []
     for record in records:
-        serialized_record = []
+        serialized_record = {}
         for key, value in record.items():
             if isinstance(value, datetime):
                 serialized_record[key] = value.isoformat()
@@ -32,12 +32,14 @@ client = InfluxDBClient(
 write_api = client.write_api(write_options=SYNCHRONOUS)
 query_api = client.query_api()
 
-def write_benchmark(model_name: str, metric: str, value: float):
+def write_benchmark(model_name: str, metric: str, value: float, category: str, judge: str):
     "Write a single benchmark data point to InfluxDB"
     point = (
         Point("benchmark")  #Point is a data structure representing a single measurement in InfluxDB, with a measurement name of "benchmark"
         .tag("model_name", model_name)  #tag is a key-value pair used for indexing and querying in InfluxDB, here we add a tag for the model name
-        .tag("metric", metric)  #
+        .tag("metric", metric)  
+        .tag("judge",judge)
+        .tag("category", category)
         .field("value", float(value))  #field is the actual data value we want to store, here we add a field for the metric value
         .time(datetime.utcnow(), WritePrecision.NS)
     )
@@ -65,15 +67,18 @@ def query_benchmarks(model_name: str, metric: str, hours: int = 1):
             })
     return results
 
-def query_latest_scores():
+def query_latest_scores(category: str, judge: str, metric: str = "accuracy"):  #powers the leaderboard
     "Get the most recent score per model per metric - for the leaderboard"
     query = f'''
-        from(bucket: "{INFLUXDB_BUCKET}")   
+        from(bucket: "{INFLUXDB_BUCKET}")
             |> range(start: -24h)
             |> filter(fn: (r) => r._measurement == "benchmark")
-            |> group(columns: ["model_name", "metric"])
+            |> filter(fn: (r) => r.category == "{category}")
+            |> filter(fn: (r) => r.judge == "{judge}")
+            |> filter(fn: (r) => r.metric == "{metric}")
+            |> group(columns: ["model_name"])
             |> last()
-    '''
+        '''
     tables = query_api.query(query)
     results = []
     print(f"DEBUG: tables = {tables}")
