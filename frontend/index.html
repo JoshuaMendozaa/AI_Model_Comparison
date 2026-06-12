@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI_MODEL_BATTLE :: terminal</title>
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --fg: #33ff66;
+    --fg-dim: #1f9e3f;
+    --amber: #ffb000;
+    --red: #ff4444;
+    --scan: rgba(0,0,0,0.18);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "SFMono-Regular", "Consolas", "Liberation Mono", Menlo, monospace;
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  /* CRT scanline + flicker overlay */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      var(--scan) 3px,
+      var(--scan) 3px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+  .wrap {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  pre.logo {
+    color: var(--fg);
+    font-size: 11px;
+    line-height: 1.15;
+    margin: 0 0 0.5rem;
+    text-shadow: 0 0 6px rgba(51,255,102,0.5);
+    overflow-x: auto;
+  }
+  .tagline { color: var(--fg-dim); margin: 0 0 1.5rem; }
+  .blink { animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .divider { color: var(--fg-dim); margin: 1.25rem 0; user-select: none; }
+  h2 {
+    font-size: 15px; font-weight: normal;
+    color: var(--amber); margin: 1.5rem 0 0.5rem;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  h2::before { content: "> "; color: var(--fg-dim); }
+  label { display: block; color: var(--fg-dim); margin: 0.75rem 0 0.25rem; }
+  select, button, input {
+    background: #0d130d;
+    color: var(--fg);
+    border: 1px solid var(--fg-dim);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 6px 10px;
+  }
+  select:focus, button:focus, input:focus { outline: 1px solid var(--fg); }
+  .checks label {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--fg); margin: 4px 14px 4px 0; cursor: pointer;
+  }
+  button {
+    cursor: pointer; margin-top: 1rem;
+    background: var(--fg-dim); color: #04210d; font-weight: bold;
+    border: 1px solid var(--fg);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  button:hover { background: var(--fg); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status { color: var(--fg-dim); margin: 0.75rem 0; min-height: 1.2em; }
+  .status.err { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px dashed var(--fg-dim); }
+  th { color: var(--amber); text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+  .rank { color: var(--fg-dim); }
+  .winner { color: var(--amber); }
+  .bar { color: var(--fg); letter-spacing: -1px; }
+  .battle-card { border: 1px solid var(--fg-dim); padding: 0.75rem 1rem; margin-top: 0.75rem; }
+  .battle-card .name { color: var(--amber); }
+  .muted { color: var(--fg-dim); }
+  .feed { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <pre class="logo">
+ █████  ██     ███    ███  ██████  ██████  ███████ ██
+██   ██ ██     ████  ████ ██    ██ ██   ██ ██      ██
+███████ ██     ██ ████ ██ ██    ██ ██   ██ █████   ██
+██   ██ ██     ██  ██  ██ ██    ██ ██   ██ ██      ██
+██   ██ ██     ██      ██  ██████  ██████  ███████ ███████
+
+██████   █████  ████████ ████████ ██      ███████
+██   ██ ██   ██    ██       ██    ██      ██
+██████  ███████    ██       ██    ██      █████
+██   ██ ██   ██    ██       ██    ██      ██
+██████  ██   ██    ██       ██    ███████ ███████
+  </pre>
+  <p class="tagline">// real-time LLM benchmarking terminal<span class="blink">_</span></p>
+
+  <div class="divider">════════════════════════════════════════════════════════════════</div>
+
+  <h2>new battle</h2>
+  <label for="category">category:</label>
+  <select id="category">
+    <option value="reasoning">reasoning</option>
+    <option value="coding">coding</option>
+    <option value="knowledge">knowledge</option>
+    <option value="creative">creative</option>
+  </select>
+
+  <label>models (select 2+):</label>
+  <div class="checks" id="model-checks">
+    <span class="muted">loading models...</span>
+  </div>
+    <label for="judge">judge model:</label>
+    <select id="judge"><option value="">-- loading --</option></select>
+  <button id="start-btn" disabled>[ start battle ]</button>
+  <p class="status" id="status"></p>
+
+  <div id="battle-output"></div>
+
+  <div class="divider">════════════════════════════════════════════════════════════════</div>
+
+  <h2>live leaderboard</h2>
+
+
+  <div style="margin-bottom: 0.75rem;">
+    <label for="lb-category">category:</label>
+    <select id="lb-category">
+      <option value="reasoning">reasoning</option>
+      <option value="coding">coding</option>
+      <option value="knowledge">knowledge</option>
+      <option value="creative">creative</option>
+    </select>
+
+    <label for="lb-judge" style="margin-left: 1rem;">judge:</label>
+    <select id="lb-judge"><option value="">-- select --</option></select>
+
+    <label for="lb-metric" style="margin-left: 1rem;">metric:</label>
+    <select id="lb-metric">
+      <option value="accuracy">accuracy</option>
+      <option value="latency_ms">latency_ms</option>
+      <option value="tokens_per_second">tokens_per_second</option>
+    </select>
+  </div>
+
+
+  <div id="leaderboard"><span class="muted">connecting to feed...</span></div>
+
+  <div class="divider">════════════════════════════════════════════════════════════════</div>
+  <p class="muted">conn: <span id="conn">--</span> | <a href="https://github.com/JoshuaMendozaa/AI_Model_Comparison">source</a></p>
+
+</div>
+
+<script>
+  // API base — same host the page is served from, on port 8000.
+  // When served by the backend or behind a proxy this can be just "".
+  const API = (location.origin.includes(":") && !location.origin.endsWith(":8000"))
+    ? location.protocol + "//" + location.hostname + ":8000"
+    : location.origin;
+  const WS = API.replace("http", "ws");
+  let allModels = [];
+
+  const $ = (id) => document.getElementById(id);
+
+  function bar(value, max = 100, width = 20) {
+    const filled = Math.round((value / max) * width);
+    return "[" + "#".repeat(filled) + "-".repeat(width - filled) + "]";
+  }
+
+  function rebuildJudgeDropdown() {
+  // find which models are currently checked as fighters
+  const checked = [...document.querySelectorAll('#model-checks input:checked')].map(c => c.value);
+
+  // build the judge dropdown from models that are NOT checked
+  const judgeSelect = $("judge");
+  judgeSelect.innerHTML = '<option value="">-- select judge --</option>';
+  allModels
+    .filter(m => !checked.includes(m))
+    .forEach(m => {
+       const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m;
+      judgeSelect.appendChild(opt);
+    });  
+   // enable start button only when 2+ fighters checked AND a judge is selected
+  $("start-btn").disabled = checked.length < 2 || !judgeSelect.value;
+} 
+  // ---- Load available models ----
+  async function loadModels() {
+    try {
+      const res = await fetch(API + "/battle/models/available");
+      const data = await res.json();
+      const box = $("model-checks");
+      box.innerHTML = "";
+      (data.models || []).forEach((m) => {
+        const name = m.replace(":latest", "");
+        const id = "m_" + name.replace(/[^a-z0-9]/gi, "_");
+        const label = document.createElement("label");
+        label.innerHTML = `<input type="checkbox" value="${name}" id="${id}" /> ${name}`;
+        box.appendChild(label);
+        label.querySelector("input").addEventListener("change", rebuildJudgeDropdown);
+      });
+      allModels = data.models.map(m => m.replace(":latest", ""));
+      $("judge").addEventListener("change", rebuildJudgeDropdown);
+      rebuildJudgeDropdown();
+    } catch (e) {
+      $("model-checks").innerHTML = '<span class="muted">offline — backend unreachable</span>';
+      $("status").textContent = "ERR: cannot reach " + API;
+      $("status").className = "status err";
+    }
+  }
+
+  // ---- Start a battle ----
+  async function startBattle() {
+    const checked = [...document.querySelectorAll('#model-checks input:checked')].map(c => c.value);
+    if (checked.length < 2) {
+      $("status").textContent = "ERR: select at least 2 models";
+      $("status").className = "status err";
+      return;
+    }
+    const category = $("category").value;
+    $("status").className = "status";
+    $("status").textContent = "> firing prompt to [" + checked.join(", ") + "]... (may take a minute)";
+    $("start-btn").disabled = true;
+
+    try {
+      const res = await fetch(API + "/battle/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, models: checked, judge: $("judge").value })
+      });
+      const data = await res.json();
+      renderBattle(data);
+      $("status").textContent = "> battle complete. winner: " + data.winner;
+    } catch (e) {
+      $("status").textContent = "ERR: battle failed — " + e.message;
+      $("status").className = "status err";
+    } finally {
+      $("start-btn").disabled = false;
+    }
+  }
+
+  async function fetchLeaderboard() {
+    const category = $("lb-category").value;
+    const judge = $("lb-judge").value;
+    const metric = $("lb-metric").value;
+
+    if (!judge) {
+      $("leaderboard").innerHTML = ''
+    }
+  }
+
+  function renderBattle(data) {
+    const out = $("battle-output");
+    let html = `<div class="battle-card"><div class="muted">prompt [${data.category}]:</div>${data.prompt}</div>`;
+    (data.results || []).forEach(r => {
+      const s = r.scores || {};
+      const isWin = r.model === data.winner;
+      html += `<div class="battle-card">
+        <div class="name">${isWin ? "★ " : "  "}${r.model}${isWin ? "  <span class='muted'>[winner]</span>" : ""}</div>
+        <div class="muted">latency: ${Math.round(r.latency_ms)}ms | tok/s: ${(r.tokens_per_second||0).toFixed(1)}</div>
+        <div class="bar">score ${bar(s.overall||0)} ${(s.overall||0).toFixed(1)}/100</div>
+        <div class="muted">${s.summary || ""}</div>
+      </div>`;
+    });
+    out.innerHTML = html;
+  }
+
+  // ---- Leaderboard rendering ----
+  function renderLeaderboard(rows) {
+    if (!rows || rows.length === 0) {
+      $("leaderboard").innerHTML = '<span class="muted">no data yet — run a battle</span>';
+      return;
+    }
+    // keep only 'accuracy'/overall-style metric for ranking if present, else show all
+    const sorted = [...rows].sort((a, b) => (b.value || 0) - (a.value || 0));
+    let html = "<table><tr><th>#</th><th>model</th><th>metric</th><th>value</th><th>bar</th></tr>";
+    sorted.forEach((r, i) => {
+      html += `<tr>
+        <td class="rank">${String(i+1).padStart(2,"0")}</td>
+        <td class="${i===0?'winner':''}">${r.model_name}</td>
+        <td class="muted">${r.metric}</td>
+        <td>${(r.value||0).toFixed(1)}</td>
+        <td class="bar">${bar(r.value > 100 ? 100 : r.value)}</td>
+      </tr>`;
+    });
+    html += "</table>";
+    $("leaderboard").innerHTML = html;
+  }
+
+  // ---- WebSocket live feed ----
+  function connectWS() {
+    try {
+      const ws = new WebSocket(WS + "/ws/leaderboard");
+      ws.onopen = () => { $("conn").textContent = "LIVE"; $("conn").className = "winner"; };
+      ws.onclose = () => { $("conn").textContent = "closed"; setTimeout(connectWS, 3000); };
+      ws.onerror = () => { $("conn").textContent = "error"; };
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.leaderboard) renderLeaderboard(msg.leaderboard);
+      };
+    } catch (e) {
+      $("conn").textContent = "no ws";
+    }
+  }
+
+  $("start-btn").addEventListener("click", startBattle);
+  loadModels();
+  connectWS();
+</script>
+</body>
+</html>
