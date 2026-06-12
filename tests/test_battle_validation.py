@@ -7,7 +7,8 @@ def test_battle_rejects_invalid_category():
     """Battle should reject categories that arent in the valid set"""
     response = client.post("/battle/start", json={
         "category": "not_a_real_category",
-        "models": ["llama3.2", "mistral"]
+        "models": ["llama3.2", "mistral"],
+        "judge": "deepseekr1"
     })
     assert response.status_code == 400
     assert "Invalid category" in response.json()["detail"]
@@ -17,6 +18,7 @@ def test_battle_rejects_single_model():
     response = client.post("/battle/start", json={
         "category": "reasoning",
         "models": ["llama3.2"]
+        "judge": "mistral"
     })
     assert response.status_code in [400]
 
