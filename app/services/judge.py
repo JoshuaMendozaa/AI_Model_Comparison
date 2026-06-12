@@ -3,10 +3,9 @@ import json
 import re
 import os
 
+
 OLLAMA_HOST = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 client = ollama.Client(host=OLLAMA_HOST)
-
-JUDGE_MODEL = os.getenv("JUDGE_MODEL", "deepseek-r1")
 
 JUDGE_PROMPT = """You are an expert AI evaluator. Score the following response to this prompt.
 
@@ -25,15 +24,15 @@ You MUST respond with ONLY a JSON object. No thinking tags, no explanation, no e
 Respond with ONLY this exact format:
 {{"correctness": 0, "reasoning": 0, "completeness": 0, "conciseness": 0, "coherence": 0, "overall": 0, "summary": "one sentence"}}"""
 
-def judge_response(prompt: str, response: str) -> dict:
-    """Use deepseek/judge to judge a model response on 5 research dimensions"""
+def judge_response(prompt: str, response: str, judge: str) -> dict:
+    """judge a model response on 5 research dimensions"""
 
     if not response or len(response.strip()) < 10:
         return _default_score("No response provided")
 
     try:
         result = client.chat(
-            model=JUDGE_MODEL,
+            model=judge,
             messages=[{
                 "role": "user",
                 "content": JUDGE_PROMPT.format(

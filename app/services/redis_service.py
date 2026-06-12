@@ -7,12 +7,14 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 #single shared async redis client instance for the application
 redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
 
-LEADERBOARD_CACHE_KEY = "leaderboard:latest"
 CACHE_TTL_SECONDS = 30 #Cache exprires after 30 seconds to ensure we don't serve stale data for too long
 
-async def get_cached_leaderboard() -> list | None:
+def _cache_key(category: str, judge: str, metric: str) -> str:
+    return f"leaderboard:{category}:{judge}:{metric}"
+
+async def get_cached_leaderboard(category, judge, metric) -> list | None:
     try:
-        cached = await redis_client.get(LEADERBOARD_CACHE_KEY)
+        cached = await redis_client.get(_cache_key(category, judge, metric))
         if cached:
             print("> Cache hit - serving leaderboard from redis")
             return json.loads(cached)
@@ -22,23 +24,25 @@ async def get_cached_leaderboard() -> list | None:
         print(f"Error accessing Redis cache: {e}")
         return None
     
-async def set_cached_leaderboard(leaderboard: list):
+async def set_cached_leaderboard(results, category, judge, metric):
     try:
         await redis_client.setex(   #stores value with an expiry
-            LEADERBOARD_CACHE_KEY,
+            _cache_key(category, judge, metric),
             CACHE_TTL_SECONDS,
-            json.dumps(leaderboard)
+            json.dumps(results)
         )
         print("> Updated leaderboard cache in redis")
     except Exception as e:
         print(f"Error setting Redis cache: {e}")
 
-async def invalidate_cache():
+async def invalidate_cache(category, judge):
     try:
-        await redis_client.delete(LEADERBOARD_CACHE_KEY)
-        print("> Invalidated leaderboard cache in redis")
+        pattern = f"leaderboard:{category}:{judge}:*"
+        keys = await redis_client.keys(pattern)
+        if keys:
+            await redis_client.delete(*keys)
     except Exception as e:
-        print(f"Error invalidating Redis cache: {e}")
+        print(f"error, not invalidated")
     
 async def publish_benchmark(data: dict):
     try:
