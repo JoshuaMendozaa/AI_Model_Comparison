@@ -17,7 +17,7 @@ def test_battle_rejects_single_model():
     """A battle needs at least 2 models to compute"""
     response = client.post("/battle/start", json={
         "category": "reasoning",
-        "models": ["llama3.2"]
+        "models": ["llama3.2"],
         "judge": "mistral"
     })
     assert response.status_code in [400]
