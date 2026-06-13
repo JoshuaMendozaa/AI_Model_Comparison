@@ -24,6 +24,17 @@ You MUST respond with ONLY a JSON object. No thinking tags, no explanation, no e
 Respond with ONLY this exact format:
 {{"correctness": 0, "reasoning": 0, "completeness": 0, "conciseness": 0, "coherence": 0, "overall": 0, "summary": "one sentence"}}"""
 
+def _default_score(reason: str) -> dict:
+    return {
+        "correctness": 0,
+        "reasoning": 0,
+        "completeness": 0,
+        "conciseness": 0,
+        "coherence": 0,
+        "overall": 0,
+        "summary": reason
+    }
+
 def judge_response(prompt: str, response: str, judge: str) -> dict:
     """judge a model response on 5 research dimensions"""
 
@@ -52,35 +63,14 @@ def judge_response(prompt: str, response: str, judge: str) -> dict:
         if json_match:
             scores = json.loads(json_match.group())
             required =  ["correctness", "reasoning", "completeness", "conciseness", "coherence"]
-            # Ensure overall is weighted average if not provided correctly
+            # Always recompute overall in Python — never trust the LLM's arithmetic
             if all(k in scores for k in required):
-                if "overall" not in scores:
-                    avg = sum(scores[k] for k in required) / len(required)
-                    scores["overall"] = round(avg * 10, 1)
+                avg = sum(scores[k] for k in required) / len(required)
+                scores["overall"] = round(avg * 10, 1)
                 print(f"Judge scores: {scores}")
                 return scores
-        return _default_score("Model did not return valid JSON scores")
 
     except Exception as e:
         print(f"Judge error: {e}")
-
-    return {
-        "correctness": 5,
-        "reasoning": 5,
-        "completeness": 5,
-        "conciseness": 5,
-        "coherence": 5,
-        "overall": 50,
-        "summary": "Scoring unavailable"
-    }
-
-def _default_score(reason: str) -> dict:
-    return {
-        "correctness": 0,
-        "reasoning": 0,
-        "completeness": 0,
-        "conciseness": 0,
-        "coherence": 0,
-        "overall": 0,
-        "summary": reason
-    }
+    
+    return _default_score("Scoring Unavailable")

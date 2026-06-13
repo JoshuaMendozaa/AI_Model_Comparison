@@ -32,6 +32,8 @@ client = InfluxDBClient(
 write_api = client.write_api(write_options=SYNCHRONOUS)
 query_api = client.query_api()
 
+LOWER_IS_BETTER = {"latency_ms", "memory_mb"}
+
 def write_benchmark(model_name: str, metric: str, value: float, category: str, judge: str):
     "Write a single benchmark data point to InfluxDB"
     point = (
@@ -81,7 +83,6 @@ def query_latest_scores(category: str, judge: str, metric: str = "accuracy"):  #
         '''
     tables = query_api.query(query)
     results = []
-    print(f"DEBUG: tables = {tables}")
     for table in tables:
         for record in table.records:
             results.append({
@@ -90,5 +91,6 @@ def query_latest_scores(category: str, judge: str, metric: str = "accuracy"):  #
                 "metric": record["metric"],
                 "value": record.get_value()
             })
-    print(f"DEBUG: results = {results}")
+    reverse = metric not in LOWER_IS_BETTER
+    results.sort(key=lambda r : r["value"], reverse=reverse)
     return results
