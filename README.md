@@ -12,21 +12,23 @@ Built with **FastAPI · PostgreSQL · InfluxDB · Redis · WebSockets · Docker 
 
 1. **Pick a category** — reasoning, coding, knowledge, or creative
 2. **Choose your fighters** — any Ollama-supported model (DeepSeek, Llama, Mistral, Gemma, Phi, Qwen, and more)
-3. **Same prompt fires to all models simultaneously** — async concurrency, not sequential
-4. **A judge model scores each response** on correctness, reasoning, completeness, conciseness, and coherence (0-100 scale)
-5. **Results stream live** to all connected clients via WebSocket — no polling, no refreshing
+3. **Pick a judge** — chosen per battle, not fixed. The judge cannot be one of the fighters (prevents self-preference bias; the server rejects it with a 400)
+4. **Same prompt fires to all models simultaneously** — async concurrency, not sequential
+5. **The judge model scores each response** on correctness, reasoning, completeness, conciseness, and coherence (0-100 scale)
+6. **Results stream live** to all connected clients via WebSocket — no polling, no refreshing
 
 ```
 POST /battle/start
-  { "category": "reasoning", "models": ["llama3.2", "mistral"] }
+  { "category": "reasoning", "models": ["llama3.2", "mistral"], "judge": "deepseek-r1" }
 
 Same prompt ──▶ llama3.2  ──▶ response + latency
              ──▶ mistral   ──▶ response + latency
                                     │
-                              Judge (deepseek-r1)
+                              Judge (chosen per battle)
                               scores both on 5 dimensions
                                     │
                               InfluxDB stores metrics
+                              (tagged with category + judge)
                               Redis caches leaderboard
                               WebSocket broadcasts live
 ```
@@ -112,6 +114,8 @@ Same prompt ──▶ llama3.2  ──▶ response + latency
     │       └── ollama_provider.py  Ollama client adapter
     └── prompts/
         └── prompts.json            Curated stress prompts by category
+frontend/
+└── index.html                      Terminal/retro dashboard (single file, vanilla JS)
 ```
 
 ---
@@ -183,8 +187,10 @@ Visit `http://localhost:8000/docs` for the full interactive API explorer.
 ```bash
 curl -X POST http://localhost:8000/battle/start \
   -H "Content-Type: application/json" \
-  -d '{"category": "reasoning", "models": ["llama3.2", "mistral"]}'
+  -d '{"category": "reasoning", "models": ["llama3.2", "mistral"], "judge": "deepseek-r1"}'
 ```
+
+The `judge` is required and must not appear in `models` — a model cannot judge a battle it is competing in (the server returns 400 if it does).
 
 ### Watch live via WebSocket
 
@@ -247,14 +253,14 @@ Every benchmark submission broadcasts instantly to all connected clients — no 
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/benchmarks/` | Submit a benchmark score |
-| GET | `/benchmarks/leaderboard/latest` | Current leaderboard (Redis-cached) |
+| GET | `/benchmarks/leaderboard/latest?category=X&judge=Y&metric=Z` | Filtered leaderboard (Redis-cached). Filters by category + judge so scores stay comparable; default metric is `accuracy`. Sort is metric-aware — `latency_ms`/`memory_mb` rank lowest-first, everything else highest-first |
 | GET | `/benchmarks/{model}/{metric}?hours=1` | Historical scores |
 
 ### Battle
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/battle/start` | Start a battle between models |
+| POST | `/battle/start` | Start a battle: `{category, models[], judge, prompt?}`. `judge` must not be one of `models` (400 if it is) |
 | GET | `/battle/models/available` | List Ollama models available for battle |
 | GET | `/battle/prompts/{category}` | Preview stress prompts by category |
 
@@ -292,7 +298,9 @@ Tests cover API endpoint validation, judge scoring logic, and health checks. CI 
 
 **Why asyncio.gather for battles?** Models run concurrently, not sequentially. If each model takes 60 seconds, a 3-model battle takes ~60 seconds total instead of 180. `asyncio.to_thread` moves the synchronous Ollama calls off the main event loop so the server stays responsive during battles.
 
-**Why LLM-as-a-Judge?** Based on the MT-Bench research approach (Zheng et al., 2023). A stronger model evaluates weaker ones on 5 research-standard dimensions. The overall score is computed deterministically in Python — never trusting an LLM for arithmetic. The judge is configurable via environment variable for easy swapping.
+**Why LLM-as-a-Judge?** Based on the MT-Bench research approach (Zheng et al., 2023). A stronger model evaluates weaker ones on 5 research-standard dimensions. The overall score is computed deterministically in Python — never trusting an LLM for arithmetic. The judge is chosen per battle (the `JUDGE_MODEL` env var only sets a default), and a model can never judge a battle it is competing in — that would invite self-preference bias.
+
+**Why is every score tagged with its judge?** A quality score is one judge's subjective opinion, not an objective measurement — an 85 from DeepSeek is not comparable to an 85 from Mistral. Mixing judges in one ranking produces a meaningless leaderboard. So every benchmark write is tagged with its judge, and the leaderboard always filters to a single judge (and category) to keep rankings valid. Objective metrics like latency are judge-independent but still tagged for consistent filtering.
 
 **Why a pluggable provider pattern?** Every provider implements the same interface. Adding a new model source (OpenAI, Anthropic, HuggingFace) requires one new file with zero changes to the battle logic. This is the adapter pattern — one of the most practical design patterns in production systems.
 
@@ -312,10 +320,11 @@ docker compose down -v
 
 ## Future Enhancements
 
+- [x] Frontend dashboard — terminal/retro UI with per-battle judge selection and a category/judge/metric-filtered live leaderboard
 - [ ] Analytics layer — pandas + scikit-learn trend analysis and performance forecasting
-- [ ] Frontend dashboard — live leaderboard with charts and battle control panel
 - [ ] Sandboxed code execution — run and test LLM-generated code automatically
 - [ ] API provider support — plug in OpenAI, Anthropic, and DeepSeek alongside Ollama
+- [ ] Production hardening — lock CORS to the real domain, production Dockerfile, AWS EC2 deploy
 
 ---
 
