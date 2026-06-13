@@ -150,7 +150,7 @@
   <h2>live leaderboard</h2>
 
 
-  <div style="margin-bottom: 0.75rem;">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
     <label for="lb-category">category:</label>
     <select id="lb-category">
       <option value="reasoning">reasoning</option>
@@ -194,12 +194,24 @@
     return "[" + "#".repeat(filled) + "-".repeat(width - filled) + "]";
   }
 
+  // Only touches the button — safe to call on any change, never rebuilds the dropdown.
+  function updateStartButton() {
+    const checked = [...document.querySelectorAll('#model-checks input:checked')].map(c => c.value);
+    // enable start button only when 2+ fighters checked AND a judge is selected
+    $("start-btn").disabled = checked.length < 2 || !$("judge").value;
+  }
+
+  // Rebuilds the judge options. Only needed when the FIGHTER set changes,
+  // because that changes which models are eligible to judge.
   function rebuildJudgeDropdown() {
   // find which models are currently checked as fighters
   const checked = [...document.querySelectorAll('#model-checks input:checked')].map(c => c.value);
 
-  // build the judge dropdown from models that are NOT checked
+  // remember the current pick so a still-valid judge survives the wipe-and-rebuild
   const judgeSelect = $("judge");
+  const previous = judgeSelect.value;
+
+  // build the judge dropdown from models that are NOT checked
   judgeSelect.innerHTML = '<option value="">-- select judge --</option>';
   allModels
     .filter(m => !checked.includes(m))
@@ -208,10 +220,15 @@
       opt.value = m;
       opt.textContent = m;
       judgeSelect.appendChild(opt);
-    });  
-   // enable start button only when 2+ fighters checked AND a judge is selected
-  $("start-btn").disabled = checked.length < 2 || !judgeSelect.value;
-} 
+    });
+
+  // restore the previous judge if it's still eligible (i.e. not now a fighter)
+  if (previous && !checked.includes(previous)) {
+    judgeSelect.value = previous;
+  }
+
+  updateStartButton();
+}
   // ---- Load available models ----
   async function loadModels() {
     try {
@@ -228,8 +245,18 @@
         label.querySelector("input").addEventListener("change", rebuildJudgeDropdown);
       });
       allModels = data.models.map(m => m.replace(":latest", ""));
-      $("judge").addEventListener("change", rebuildJudgeDropdown);
+      $("judge").addEventListener("change", updateStartButton);
       rebuildJudgeDropdown();
+
+      // leaderboard judge filter lists ALL models — any of them may have judged past battles
+      const lbJudge = $("lb-judge");
+      lbJudge.innerHTML = '<option value="">-- select --</option>';
+      allModels.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        lbJudge.appendChild(opt);
+      });
     } catch (e) {
       $("model-checks").innerHTML = '<span class="muted">offline — backend unreachable</span>';
       $("status").textContent = "ERR: cannot reach " + API;
@@ -259,6 +286,11 @@
       const data = await res.json();
       renderBattle(data);
       $("status").textContent = "> battle complete. winner: " + data.winner;
+      // #5: point the leaderboard at the battle that just ran, then reload it.
+      // Setting .value programmatically does NOT fire 'change', so we call fetchLeaderboard ourselves.
+      $("lb-category").value = category;
+      $("lb-judge").value = $("judge").value;
+      fetchLeaderboard();
     } catch (e) {
       $("status").textContent = "ERR: battle failed — " + e.message;
       $("status").className = "status err";
@@ -273,7 +305,16 @@
     const metric = $("lb-metric").value;
 
     if (!judge) {
-      $("leaderboard").innerHTML = ''
+      $("leaderboard").innerHTML = '<span class="muted">select a judge to load leaderboards</span>';
+      return;
+    }
+
+    try {
+      const res = await fetch (`${API}/benchmarks/leaderboard/latest?category=${category}&judge=${judge}&metric=${metric}`);
+      const data = await res.json();
+      renderLeaderboard(data.leaderboard, metric);
+    } catch (e) {
+      $("leaderboard").innerHTML =  '<span class ="muted">error loading leaderboard</span>';
     }
   }
 
@@ -299,8 +340,8 @@
       $("leaderboard").innerHTML = '<span class="muted">no data yet — run a battle</span>';
       return;
     }
-    // keep only 'accuracy'/overall-style metric for ranking if present, else show all
-    const sorted = [...rows].sort((a, b) => (b.value || 0) - (a.value || 0));
+    // backend sorts metric-aware (latency_ms lowest-first) — render in received order
+    const sorted = rows;
     let html = "<table><tr><th>#</th><th>model</th><th>metric</th><th>value</th><th>bar</th></tr>";
     sorted.forEach((r, i) => {
       html += `<tr>
@@ -324,7 +365,8 @@
       ws.onerror = () => { $("conn").textContent = "error"; };
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
-        if (msg.leaderboard) renderLeaderboard(msg.leaderboard);
+        // push is a notification, not data — re-fetch so current filters always apply
+        if (msg.leaderboard) fetchLeaderboard();
       };
     } catch (e) {
       $("conn").textContent = "no ws";
@@ -332,7 +374,11 @@
   }
 
   $("start-btn").addEventListener("click", startBattle);
+  ["lb-category", "lb-judge", "lb-metric"].forEach(id =>
+    $(id).addEventListener("change", fetchLeaderboard)
+  );
   loadModels();
+  fetchLeaderboard();
   connectWS();
 </script>
 </body>
