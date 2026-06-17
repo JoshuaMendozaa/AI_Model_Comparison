@@ -1,4 +1,4 @@
-# ⚔️ AI Model Battle
+# AI Model Battle
 
 ![CI](https://github.com/JoshuaMendozaa/AI_Model_Comparison/actions/workflows/ci.yml/badge.svg)
 
